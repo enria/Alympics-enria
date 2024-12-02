@@ -1,0 +1,3 @@
+[submodule "k-reasoning/SOTOPIA/sotopia"]
+	path = k-reasoning/SOTOPIA/sotopia
+	url = https://github.com/enria/SOTOPIA.git
