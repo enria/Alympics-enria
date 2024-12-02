@@ -39,12 +39,21 @@ class AgentPlayer(Player):
         self.logs = None
 
 
+        # self.parse_client = AzureOpenAI(
+        #     api_key="",
+        #     api_version="",
+        #     azure_endpoint=""
+        # )
+
+        from openai import AzureOpenAI
+        from azure.identity import AzureCliCredential, get_bearer_token_provider
+       
         self.parse_client = AzureOpenAI(
-            api_key="",
-            api_version="",
-            azure_endpoint=""
+            azure_endpoint="https://mtutor-openai-prod.openai.azure.com/",
+            azure_ad_token_provider=get_bearer_token_provider(AzureCliCredential(), "https://cognitiveservices.azure.com/.default"),
+            api_version="2024-02-15-preview",
         )
-        self.parse_engine = ""
+        self.parse_engine = "gpt4"
     
     @property
     def window_message(self):
@@ -72,15 +81,14 @@ class AgentPlayer(Player):
         self.biddings.append(self.parse_result(response))
 
     def parse_result(self, message):
-
         status = 0
         times = 0
         while status != 1:
             try:
                 response = self.parse_client.chat.completions.create(
                     # engine=self.engine,
-                    model = parse_engine,
-                    messages = [{"role":"system", "content":"By reading the conversation, extract the number chosen by player. Output format: number"}, {"role": "user", "content": text}],
+                    model = self.parse_engine,
+                    messages = [{"role":"system", "content":"By reading the conversation, extract the number chosen by player. Output format: number"}, {"role": "user", "content": message}],
                     temperature=0.7,
                     max_tokens=80,
                     top_p=0.95,
@@ -89,10 +97,10 @@ class AgentPlayer(Player):
                     stop=None)
                 response = response.choices[0].message.content
                 # response = response
-                assert response.isnumeric(), "Not A Number: "+ text
+                assert response.isnumeric(), "Not A Number: "+ response
                 bidding_info = int(float(response))
                 status = 1
-                return str(bidding_info)
+                return bidding_info
             except AssertionError as e:
                 print("Result Parsing Error: ",e)
                 times+=1
@@ -101,6 +109,9 @@ class AgentPlayer(Player):
             except Exception as e:
                 print(e)
                 time.sleep(15)
+                times+=1
+                if times>=5:
+                    exit()
         # 返回结果
         return None
     

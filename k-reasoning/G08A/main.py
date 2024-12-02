@@ -3,6 +3,7 @@ import json
 
 from player import *
 from game import G08A
+import urllib.request
 
 # Fill in your config information to conduct experiments.
 
@@ -25,6 +26,53 @@ class LLMClient:
         response = response.choices[0].message.content
         return response
 
+class LLaMAClient:
+    model_dict = {}
+    model_dict['llama3_8b'] = {'url': '', 'api_key': '', 'deployment': 'meta-llama-3-8b-instruct-4'}
+    model_dict['llama3_70b'] = {'url': '', 'api_key': '', 'deployment': 'meta-llama-3-70b-instruct-4'}
+    model_dict['mistralai-8x7b'] = {'url': '', 'api_key': '', 'deployment': 'mistralai-mistral-7b-v01-15'}
+
+    def __init__(self, model) -> None:
+        self.model = model
+    
+    def encode_data(self, message):
+        data = {
+        "input_data": {
+            "input_string": message,
+            "parameters": {
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "max_new_tokens": 2000
+            }
+            }
+        }
+
+        body = str.encode(json.dumps(data))
+        return body
+    
+    def chat_completion(self, messages, temperature=0.7, max_tokens=800, top_p=0.95, frequency_penalty=0,  presence_penalty=0, stop=None):
+        config = self.model_dict[self.model]
+        headers = {'Content-Type':'application/json', 'Authorization':('Bearer '+ config['api_key']), 'azureml-model-deployment': config['deployment'] }
+        body = self.encode_data(messages)
+        req = urllib.request.Request(self.model_dict[self.model]['url'], body, headers)
+        # print(self.model_dict[model_version]['url'])
+        status = 0
+        while status < 3:
+            try:
+                # print(body)
+                response = urllib.request.urlopen(req)
+                result = response.read()
+                result = json.loads(result)
+                print(result)
+                return result['output']
+            except urllib.error.HTTPError as error:
+                print("The request failed with status code: " + str(error.code))
+                print(error.info())
+                print(error.read().decode("utf8", 'ignore'))
+                status += 1
+                time.sleep(2)
+        return ""
+
 def build_client(model):
     if model in ["gpt35prod", "gpt4-32k"]:
         client = AzureOpenAI(
@@ -32,12 +80,13 @@ def build_client(model):
             api_version="",
             azure_endpoint=""
         )
+        return LLMClient(client, model)
     else:
-        client = OpenAI(
-            base_url="",
-            api_key=""
+        client = LLaMAClient(
+            model
         )
-    return LLMClient(client, model)
+        return client
+    
 
 def build_player(strategy, name, persona, model, mean=50, std=0, player_names = []):
     """
@@ -136,9 +185,9 @@ if __name__=="__main__":
     parser.add_argument('--start_exp', type=int, default=0)
     parser.add_argument('--exp_num', type=int, default=10)
     parser.add_argument('--player_model', type=str, default="gpt35prod", help="player's OpenAI api engine", 
-                        choices=["gpt35prod", "gpt4-32k", "meta-llama/Llama-2-7b-chat-hf"])
+                        choices=["gpt35prod", "gpt4-32k", "meta-llama/Llama-2-7b-chat-hf", "llama3_8b"])
     parser.add_argument('--computer_model', type=str, default="gpt35prod", help="player's OpenAI api engine", 
-                        choices=["gpt35prod", "gpt4-32k", "meta-llama/Llama-2-7b-chat-hf"])
+                        choices=["gpt35prod", "gpt4-32k", "meta-llama/Llama-2-7b-chat-hf", "llama3_8b"])
     parser.add_argument('--player_k', type=int, default=None, help="player's k-level (default 2)")
 
     args = parser.parse_args()
